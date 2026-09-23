@@ -1,0 +1,15 @@
+{
+  "name": "irradiation-witness-ledger",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "辐照见证台账：哈希链、幂等提交、多标签页串行裁决与断链隔离",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test test/",
+    "verify": "node scripts/verify.mjs"
+  }
+}

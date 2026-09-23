@@ -1,0 +1,27 @@
+services:
+  # 常驻页面服务：可配置宿主端口（HOST_PORT，默认 8080）
+  web:
+    build: .
+    image: irradiation-witness-ledger:latest
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+    ports:
+      - "${HOST_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # 单次校验服务：复算并发幂等、异参冲突、断链边界，
+  # 并执行代码测试、构建检查与 HTTP 冒烟，按退出码结束。
+  # 用法：docker compose build && docker compose run --rm verify
+  verify:
+    build: .
+    image: irradiation-witness-ledger:latest
+    command: ["node", "scripts/verify.mjs"]
+    environment:
+      HOST: 127.0.0.1
+      PORT: 8080
+    restart: "no"

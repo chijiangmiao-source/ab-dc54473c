@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>辐照见证台账</title>
+  <style>
+    :root {
+      --bg: #f4f6f8; --card: #fff; --line: #d9dee5; --ink: #1f2933;
+      --muted: #66707a; --accent: #1d6fb8; --ok: #1a7f4b; --bad: #b3261e;
+      --warn: #9a6700; --bad-bg: #fdecea; --warn-bg: #fff7e0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "PingFang SC",
+            "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    header { padding: 20px 24px 8px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 13px; }
+    main { max-width: 980px; margin: 0 auto; padding: 8px 24px 48px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 10px; padding: 18px 20px; margin: 16px 0;
+    }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+    label span { color: var(--muted); }
+    input {
+      padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+      font-size: 14px;
+    }
+    input:focus { outline: 2px solid rgba(29,111,184,.35); border-color: var(--accent); }
+    button {
+      margin-top: 14px; padding: 9px 22px; border: 0; border-radius: 6px;
+      background: var(--accent); color: #fff; font-size: 14px; cursor: pointer;
+    }
+    button:disabled { background: #9db8cf; cursor: not-allowed; }
+    .msg { margin-top: 12px; font-size: 13px; white-space: pre-wrap; }
+    .msg.ok { color: var(--ok); }
+    .msg.err { color: var(--bad); }
+    .banner {
+      border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: 14px;
+    }
+    .banner.bad { background: var(--bad-bg); border: 1px solid #f0b4af; color: var(--bad); }
+    .banner.warn { background: var(--warn-bg); border: 1px solid #ecd9a0; color: var(--warn); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .digest { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .trunc { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .seq { font-weight: 600; }
+    .suffix td { background: var(--bad-bg); }
+    .headbox {
+      font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px;
+      word-break: break-all; background: #f0f4f8; border-radius: 6px; padding: 8px 10px;
+    }
+    .pending { font-size: 12px; color: var(--warn); margin-top: 6px; }
+    h2 { font-size: 15px; margin: 0 0 10px; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>辐照实验见证台账</h1>
+    <div class="sub">哈希链式防篡改 · 多标签页串行裁决 · 幂等补录 · 断链定位与隔离</div>
+  </header>
+  <main>
+    <section class="card" id="formCard">
+      <h2>提交剂量记录</h2>
+      <form id="ledgerForm">
+        <div class="grid">
+          <label>仪器
+            <input name="instrument" required maxlength="60" placeholder="如 Co-60-01" autocomplete="off" />
+          </label>
+          <label>整数剂量（正整数，单位 Gy）
+            <input name="dose" required inputmode="numeric" pattern="[0-9]+" placeholder="如 250" autocomplete="off" />
+          </label>
+          <label>操作人
+            <input name="operator" required maxlength="40" placeholder="姓名/工号" autocomplete="off" />
+          </label>
+          <label>操作标识（同一标识重复提交按幂等处理）
+            <input name="opId" required maxlength="60" placeholder="如 batch-2026-0923-01" autocomplete="off" />
+          </label>
+        </div>
+        <button type="submit" id="submitBtn">提交</button>
+        <div class="msg" id="formMsg"></div>
+        <div class="pending" id="pendingBox"></div>
+      </form>
+    </section>
+
+    <div id="banners"></div>
+
+    <section class="card" id="headCard">
+      <h2>最后一个可信链头</h2>
+      <div class="headbox" id="headBox"></div>
+    </section>
+
+    <section class="card" id="chainCard">
+      <h2>可信链（自创世记录复算）</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>序号</th><th>仪器</th><th>剂量(Gy)</th><th>操作人</th><th>操作标识</th>
+            <th>前序摘要</th><th>当前摘要</th>
+          </tr>
+        </thead>
+        <tbody id="chainBody"></tbody>
+      </table>
+      <p class="muted" id="emptyHint" hidden>暂无记录，下一条将以创世摘要 GENESIS 作为前序摘要。</p>
+    </section>
+
+    <section class="card" id="suffixCard" hidden>
+      <h2 style="color:var(--bad)">已隔离后缀（禁止继续追加）</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>序号</th><th>仪器</th><th>剂量(Gy)</th><th>操作人</th><th>操作标识</th>
+            <th>前序摘要</th><th>当前摘要</th>
+          </tr>
+        </thead>
+        <tbody id="suffixBody"></tbody>
+      </table>
+    </section>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
